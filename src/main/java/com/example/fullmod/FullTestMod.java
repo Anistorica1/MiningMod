@@ -123,6 +123,7 @@ public class FullTestMod {
                     break;
         }
     }
+
     private void faceBlock(BlockPos pos) {
         double dx = pos.getX() + 0.5 - mc.thePlayer.posX;
         double dy = pos.getY() + 0.5 - (mc.thePlayer.posY + mc.thePlayer.getEyeHeight());
@@ -206,31 +207,37 @@ public class FullTestMod {
     }
     public void stopWalk(){
         this.autoWalk = false;
+        resetKeys();
         mc.thePlayer.addChatMessage(new ChatComponentText("§e[FullMod] 已停止行动"));
     }
     public void handleSmoothLook() {
-        if(!smoothLook) return;
+        if (!smoothLook) return;
+
         float currentYaw = mc.thePlayer.rotationYaw;
         float currentPitch = mc.thePlayer.rotationPitch;
-        float targetYaw = this.targetYaw;
-        float targetPitch = this.targetPitch;
-        float speed = this.targetSpeed;
-        // 计算差值
+
         float diffYaw = wrapAngleTo180_float(targetYaw - currentYaw);
         float diffPitch = targetPitch - currentPitch;
 
-        // 限制每 tick 的旋转速度
+        float speed = this.targetSpeed;
+
+        // 如果已经非常接近目标角度 → 认为到达
+        if (Math.abs(diffYaw) < 0.01f && Math.abs(diffPitch) < 0.01f) {
+            mc.thePlayer.rotationYaw = targetYaw;
+            mc.thePlayer.rotationPitch = targetPitch;
+            smoothLook = false;
+            mc.thePlayer.addChatMessage(new ChatComponentText("§a[FullMod] 已到达指定角度！"));
+            return;
+        }
+
+        // 限制每 tick 旋转速度
         diffYaw = clamp(diffYaw, -speed, speed);
         diffPitch = clamp(diffPitch, -speed, speed);
 
-        // 更新角度
         mc.thePlayer.rotationYaw = currentYaw + diffYaw;
         mc.thePlayer.rotationPitch = currentPitch + diffPitch;
-        if(mc.thePlayer.rotationYaw ==targetYaw && mc.thePlayer.rotationPitch ==targetPitch) {
-            smoothLook = false;
-            mc.thePlayer.addChatMessage(new ChatComponentText("§a[FullMod] 已到达指定角度！"));
-        }
     }
+
     public float clamp(float val, float min, float max) {
         return Math.max(min, Math.min(max, val));
     }

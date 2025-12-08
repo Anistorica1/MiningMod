@@ -35,7 +35,6 @@ public class CommandSmoothLook extends CommandBase {
             sender.addChatMessage(new ChatComponentText("§c坐标必须是整数"));
         }
     }
-
     @Override
     public int getRequiredPermissionLevel() {
         return 0; // 允许所有人使用
