@@ -13,11 +13,14 @@ public class CommandGoto extends CommandBase {
 
     @Override
     public String getCommandUsage(ICommandSender sender) {
-        return "/goto <x> <y> <z>";
+        return "/goto <x> <y> <z> or /goto stop" ;
     }
 
     @Override
     public void processCommand(ICommandSender sender, String[] args) {
+        if(args.length == 1 && args[0].equalsIgnoreCase("stop")) {
+            FullTestMod.instance.stopWalk();
+        }
         if (args.length != 3) {
             sender.addChatMessage(new ChatComponentText("§c用法: /goto <x> <y> <z>"));
             return;

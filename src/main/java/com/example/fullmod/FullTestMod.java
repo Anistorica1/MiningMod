@@ -45,6 +45,7 @@ public class FullTestMod {
     @SubscribeEvent
     public void onClientTick(TickEvent.ClientTickEvent event) {
         handleAutoWalk();
+        handleAutoStep();
         handleSmoothLook();
         if (mc.thePlayer == null || mc.theWorld == null) return;
 
@@ -115,7 +116,6 @@ public class FullTestMod {
 //        }
         switch (phase) {
             case 0:
-                smoothLook(-90f,0f,1f);
                 phase++;
                 break;
                 case 1:
@@ -204,6 +204,10 @@ public class FullTestMod {
         this.autoWalk = true;
         mc.thePlayer.addChatMessage(new ChatComponentText("§e[FullMod] 正在前往：" + pos.toString()));
     }
+    public void stopWalk(){
+        this.autoWalk = false;
+        mc.thePlayer.addChatMessage(new ChatComponentText("§e[FullMod] 已停止行动"));
+    }
     public void handleSmoothLook() {
         if(!smoothLook) return;
         float currentYaw = mc.thePlayer.rotationYaw;
@@ -243,4 +247,29 @@ public class FullTestMod {
         this.smoothLook = true;
         mc.thePlayer.addChatMessage(new ChatComponentText("§e[FullMod] 面向：" + targetYaw+","+targetPitch));
     }
+    private void handleAutoStep() {
+        if (!autoWalk) return;
+
+        // 当前朝向
+        double yawRad = Math.toRadians(mc.thePlayer.rotationYaw);
+
+        // 前方坐标（半格）
+        double forwardX = mc.thePlayer.posX + (-Math.sin(yawRad)) * 0.5;
+        double forwardZ = mc.thePlayer.posZ + ( Math.cos(yawRad)) * 0.5;
+
+        BlockPos front = new BlockPos(forwardX, mc.thePlayer.posY - 0.1, forwardZ);
+        BlockPos frontUp = front.up();
+
+        boolean blockFront = !mc.theWorld.isAirBlock(front);
+        boolean blockFrontUp = !mc.theWorld.isAirBlock(frontUp);
+
+        // 前方一格高 → 自动跳
+        if (blockFront && blockFrontUp) {
+            KeyBinding.setKeyBindState(mc.gameSettings.keyBindJump.getKeyCode(), true);
+        } else {
+            // 松开跳跃键
+            KeyBinding.setKeyBindState(mc.gameSettings.keyBindJump.getKeyCode(), false);
+        }
+    }
+
 }
