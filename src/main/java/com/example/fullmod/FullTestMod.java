@@ -14,6 +14,10 @@ import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
 import net.minecraftforge.common.MinecraftForge;
 import org.lwjgl.input.Keyboard;
+
+import java.util.ArrayList;
+import java.util.List;
+
 @Mod(modid = "farmingmod_v1", name = "Move Mod", version = "1.0")
 public class FullTestMod {
 
@@ -32,11 +36,15 @@ public class FullTestMod {
     private float targetSpeed = 0;
     private boolean smoothLook = false;
     public static FullTestMod instance;
+    private List<PathNode> path = null;
+    private int currentNodeIndex = 0;
+    private boolean pathWalking = false;
     @Mod.EventHandler
     public void init(FMLInitializationEvent event) {
         MinecraftForge.EVENT_BUS.register(this);
         ClientCommandHandler.instance.registerCommand(new CommandGoto());
         ClientCommandHandler.instance.registerCommand(new CommandSmoothLook());
+        ClientCommandHandler.instance.registerCommand(new CommandLookBlock());
     }
     public FullTestMod() {
         instance = this;
@@ -47,6 +55,7 @@ public class FullTestMod {
         handleAutoWalk();
         handleAutoStep();
         handleSmoothLook();
+        handlePathWalk();
         if (mc.thePlayer == null || mc.theWorld == null) return;
 
         // 检测 O 键是否从未按下 -> 按下一瞬间
@@ -71,57 +80,7 @@ public class FullTestMod {
 
         if (mc.objectMouseOver == null || mc.objectMouseOver.getBlockPos() == null) return;
 //        BlockPos pos = mc.objectMouseOver.getBlockPos();
-        if(markFirst) {
-            poses[0] = mc.objectMouseOver.getBlockPos();
-            markFirst = false;
-        }
 
-//        switch (phase) {
-//            case 0:
-//                if (tickCounter ==1){
-//                faceBlock(poses[0]);
-//                press(mc.gameSettings.keyBindAttack);
-//                press(mc.gameSettings.keyBindForward);}
-//                if(!hasBlock(poses[0]))
-//                {
-//                    release(mc.gameSettings.keyBindAttack);
-//                    phase ++;
-//                    tickCounter = 0;
-//                }
-//                break;
-//            case 1:
-//                poses[1] = poses[0].add(0, -1, 0);
-//                if (tickCounter == 1){
-//                faceBlock(poses[1]);
-//                press(mc.gameSettings.keyBindAttack);
-//                press(mc.gameSettings.keyBindForward);}
-//                if(!hasBlock(poses[1]))
-//                {
-//                    release(mc.gameSettings.keyBindAttack);
-//                    phase ++;
-//                    poses[0] = poses[1].add(1, 1, 0);
-//                    tickCounter = 0;
-//                }
-//                break;
-//                case 2:
-//                    if (tickCounter == 1){
-//                        faceBlock(poses[0]);
-//                        press(mc.gameSettings.keyBindForward);}
-//                    if(tickCounter == 2){
-//                        phase = 0;
-//                        tickCounter = 0;
-//                        markFirst = true;
-//                    }
-//                    break;
-//        }
-        switch (phase) {
-            case 0:
-                phase++;
-                break;
-                case 1:
-                    phase = 0;
-                    break;
-        }
     }
 
     private void faceBlock(BlockPos pos) {
@@ -237,7 +196,6 @@ public class FullTestMod {
         mc.thePlayer.rotationYaw = currentYaw + diffYaw;
         mc.thePlayer.rotationPitch = currentPitch + diffPitch;
     }
-
     public float clamp(float val, float min, float max) {
         return Math.max(min, Math.min(max, val));
     }
@@ -278,5 +236,82 @@ public class FullTestMod {
             KeyBinding.setKeyBindState(mc.gameSettings.keyBindJump.getKeyCode(), false);
         }
     }
+    public List<PathNode> generateSimplePath(BlockPos start, BlockPos end) {
+        List<PathNode> path = new ArrayList<PathNode>();
 
+        int dx = end.getX() - start.getX();
+        int dz = end.getZ() - start.getZ();
+
+        int steps = Math.max(Math.abs(dx), Math.abs(dz));
+
+        for (int i = 0; i <= steps; i++) {
+            int x = start.getX() + dx * i / steps;
+            int z = start.getZ() + dz * i / steps;
+            int y = start.getY(); // 简单版本不处理高度
+
+            path.add(new PathNode(x, y, z, null));
+        }
+
+        return path;
+    }
+    public void startWalking(BlockPos target) {
+        BlockPos start = new BlockPos(mc.thePlayer.posX, target.getY(), mc.thePlayer.posZ);
+        this.path = generateSimplePath(start, target);
+        this.currentNodeIndex = 0;
+        this.pathWalking = true;
+        mc.thePlayer.addChatMessage(new ChatComponentText("§a[FullMod] 开始路径寻路！"));
+    }
+    public void stopPathWalk() {
+        this.pathWalking = false;
+        resetKeys();
+        mc.thePlayer.addChatMessage(new ChatComponentText("§a[FullMod] 已停止寻路"));
+    }
+    private void handlePathWalk() {
+        if (!pathWalking || path == null) return;
+
+        if (currentNodeIndex >= path.size()) {
+            stopPathWalk();
+            return;
+        }
+
+        PathNode node = path.get(currentNodeIndex);
+
+        double px = mc.thePlayer.posX;
+        double pz = mc.thePlayer.posZ;
+
+        double dx = node.x + 0.5 - px;
+        double dz = node.z + 0.5 - pz;
+
+        double dist = Math.sqrt(dx*dx + dz*dz);
+
+        // 到达该节点
+        if (dist < 0.3) {
+            currentNodeIndex++;
+            return;
+        }
+
+        // 计算转向
+        float yaw = (float)(Math.toDegrees(Math.atan2(dz, dx)) - 90F);
+
+        mc.thePlayer.rotationYaw = yaw;
+        mc.thePlayer.prevRotationYaw = yaw;
+
+        // 前进
+        press(mc.gameSettings.keyBindForward);
+    }
+    public float[] getRotationFromBlockPos(BlockPos pos) {
+        double dx = pos.getX() + 0.5 - mc.thePlayer.posX;
+        double dy = pos.getY() + 0.5 - (mc.thePlayer.posY + mc.thePlayer.getEyeHeight());
+        double dz = pos.getZ() + 0.5 - mc.thePlayer.posZ;
+
+        double distXZ = Math.sqrt(dx * dx + dz * dz);
+
+        float yaw = (float)(Math.toDegrees(Math.atan2(dz, dx)) - 90F);
+        float pitch = (float)(-Math.toDegrees(Math.atan2(dy, distXZ)));
+        return new float[]{yaw, pitch};
+    }
+    public void smoothLookToBlockPos(BlockPos target, float speed) {
+        float[] rotation = getRotationFromBlockPos(target);
+        smoothLook(rotation[0], rotation[1], speed);
+    }
 }
