@@ -1,0 +1,42 @@
+package com.example.fullmod;
+import net.minecraft.command.CommandBase;
+import net.minecraft.command.ICommandSender;
+import net.minecraft.util.BlockPos;
+import net.minecraft.util.ChatComponentText;
+
+public class CommandGoto extends CommandBase {
+
+    @Override
+    public String getCommandName() {
+        return "goto"; // 命令名：/goto
+    }
+
+    @Override
+    public String getCommandUsage(ICommandSender sender) {
+        return "/goto <x> <y> <z>";
+    }
+
+    @Override
+    public void processCommand(ICommandSender sender, String[] args) {
+        if (args.length != 3) {
+            sender.addChatMessage(new ChatComponentText("§c用法: /goto <x> <y> <z>"));
+            return;
+        }
+
+        try {
+            int x = Integer.parseInt(args[0]);
+            int y = Integer.parseInt(args[1]);
+            int z = Integer.parseInt(args[2]);
+
+            FullTestMod.instance.walkTo(new BlockPos(x, y, z));
+        } catch (NumberFormatException e) {
+            sender.addChatMessage(new ChatComponentText("§c坐标必须是整数"));
+        }
+    }
+
+    @Override
+    public int getRequiredPermissionLevel() {
+        return 0; // 所有人都能用客户端命令
+    }
+}
+

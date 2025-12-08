@@ -1,7 +1,7 @@
 [
 {
-  "modid": "farmingmod_v1",
-  "name": "farmingmod_v1",
+  "modid": "miningmod_v1",
+  "name": "MiningMod_v1",
   "description": "Example placeholder mod.",
   "version": "${version}",
   "mcversion": "${mcversion}",

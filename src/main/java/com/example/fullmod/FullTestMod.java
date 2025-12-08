@@ -1,5 +1,6 @@
 package com.example.fullmod;
 
+import net.minecraftforge.client.ClientCommandHandler;
 import net.minecraft.block.Block;
 import net.minecraft.init.Blocks;
 import net.minecraft.block.state.IBlockState;
@@ -22,13 +23,29 @@ public class FullTestMod {
     private int tickCounter = 0;
     private int phase = 0;
     private boolean lastRKeyState = false;
+    private boolean markFirst = true;
+    private BlockPos[] poses = new BlockPos[100];
+    private BlockPos targetPos = null;
+    private boolean autoWalk = false;
+    private float targetYaw = 0;
+    private float targetPitch = 0;
+    private float targetSpeed = 0;
+    private boolean smoothLook = false;
+    public static FullTestMod instance;
     @Mod.EventHandler
     public void init(FMLInitializationEvent event) {
         MinecraftForge.EVENT_BUS.register(this);
+        ClientCommandHandler.instance.registerCommand(new CommandGoto());
+        ClientCommandHandler.instance.registerCommand(new CommandSmoothLook());
+    }
+    public FullTestMod() {
+        instance = this;
     }
 
     @SubscribeEvent
     public void onClientTick(TickEvent.ClientTickEvent event) {
+        handleAutoWalk();
+        handleSmoothLook();
         if (mc.thePlayer == null || mc.theWorld == null) return;
 
         // 检测 O 键是否从未按下 -> 按下一瞬间
@@ -38,6 +55,7 @@ public class FullTestMod {
             resetKeys();
             tickCounter = 0;
             phase = 0;
+            markFirst = true;
             mc.thePlayer.addChatMessage(new ChatComponentText(
                     "§e[FullMod] 自动动作已 " + (running ? "§a开启" : "§c关闭")
             ));
@@ -52,35 +70,56 @@ public class FullTestMod {
 
         if (mc.objectMouseOver == null || mc.objectMouseOver.getBlockPos() == null) return;
 //        BlockPos pos = mc.objectMouseOver.getBlockPos();
-        BlockPos pos1 = new BlockPos(134,73,67);
-        BlockPos pos2 = new BlockPos(134,73,65);
+        if(markFirst) {
+            poses[0] = mc.objectMouseOver.getBlockPos();
+            markFirst = false;
+        }
+
+//        switch (phase) {
+//            case 0:
+//                if (tickCounter ==1){
+//                faceBlock(poses[0]);
+//                press(mc.gameSettings.keyBindAttack);
+//                press(mc.gameSettings.keyBindForward);}
+//                if(!hasBlock(poses[0]))
+//                {
+//                    release(mc.gameSettings.keyBindAttack);
+//                    phase ++;
+//                    tickCounter = 0;
+//                }
+//                break;
+//            case 1:
+//                poses[1] = poses[0].add(0, -1, 0);
+//                if (tickCounter == 1){
+//                faceBlock(poses[1]);
+//                press(mc.gameSettings.keyBindAttack);
+//                press(mc.gameSettings.keyBindForward);}
+//                if(!hasBlock(poses[1]))
+//                {
+//                    release(mc.gameSettings.keyBindAttack);
+//                    phase ++;
+//                    poses[0] = poses[1].add(1, 1, 0);
+//                    tickCounter = 0;
+//                }
+//                break;
+//                case 2:
+//                    if (tickCounter == 1){
+//                        faceBlock(poses[0]);
+//                        press(mc.gameSettings.keyBindForward);}
+//                    if(tickCounter == 2){
+//                        phase = 0;
+//                        tickCounter = 0;
+//                        markFirst = true;
+//                    }
+//                    break;
+//        }
         switch (phase) {
             case 0:
-                if (tickCounter == 1) {
-
-
-                    faceBlock(pos1);
-                    press(mc.gameSettings.keyBindAttack);
-                }
-                if (!hasBlock(pos1)){
-                    release(mc.gameSettings.keyBindAttack);
-                    phase++;
-                    tickCounter = 0;
-                }
+                smoothLook(-90f,0f,1f);
+                phase++;
                 break;
-            case 1:
-                if (tickCounter == 1 && isBedrock(pos2)) {mc.thePlayer.sendChatMessage("case 1");
-                faceBlock(pos2);
-                press(mc.gameSettings.keyBindAttack);}
-                if (!hasBlock(pos2)){
-                    release(mc.gameSettings.keyBindAttack);
-                    phase++;
-                    tickCounter = 0;
-                }
-
-                break;
-                case 2:
-                    if (tickCounter == 1) {mc.thePlayer.sendChatMessage("case 2");}
+                case 1:
+                    phase = 0;
                     break;
         }
     }
@@ -101,17 +140,19 @@ public class FullTestMod {
         mc.thePlayer.rotationPitch = pitch;
         mc.thePlayer.prevRotationPitch = pitch;
     }
+    private void faceAngle(float yaw, float pitch) {
+        mc.thePlayer.rotationYaw = yaw;
+        mc.thePlayer.prevRotationYaw = yaw;
 
-
-
+        mc.thePlayer.rotationPitch = pitch;
+        mc.thePlayer.prevRotationPitch = pitch;
+    }
     private void press(KeyBinding key) {
         KeyBinding.setKeyBindState(key.getKeyCode(), true);
     }
-
     private void release(KeyBinding key) {
         KeyBinding.setKeyBindState(key.getKeyCode(), false);
     }
-
     private void resetKeys() {
         release(mc.gameSettings.keyBindLeft);
         release(mc.gameSettings.keyBindRight);
@@ -126,5 +167,80 @@ public class FullTestMod {
         Block block = mc.theWorld.getBlockState(pos).getBlock();
         return block == Blocks.bedrock;
     }
+    private void handleAutoWalk() {
+        if (!autoWalk || targetPos == null) return;
 
+        double px = mc.thePlayer.posX;
+        double pz = mc.thePlayer.posZ;
+
+        double tx = targetPos.getX() + 0.5;
+        double tz = targetPos.getZ() + 0.5;
+
+        double dx = tx - px;
+        double dz = tz - pz;
+
+        double distance = Math.sqrt(dx * dx + dz * dz);
+
+        // 1. 到达目的地
+        if (distance < 0.5) {
+            autoWalk = false;
+            release(mc.gameSettings.keyBindForward);
+            mc.thePlayer.addChatMessage(new ChatComponentText("§a[FullMod] 已到达目的地！"));
+            return;
+        }
+
+        // 2. 计算 yaw
+        float yaw = (float)(Math.toDegrees(Math.atan2(dz, dx)) - 90F);
+
+        // 3. 设置玩家朝向
+        mc.thePlayer.rotationYaw = yaw;
+        mc.thePlayer.prevRotationYaw = yaw;
+
+        // 4. 按住前进
+        press(mc.gameSettings.keyBindForward);
+    }
+    public void walkTo(BlockPos pos) {
+        this.targetPos = pos;
+        this.autoWalk = true;
+        mc.thePlayer.addChatMessage(new ChatComponentText("§e[FullMod] 正在前往：" + pos.toString()));
+    }
+    public void handleSmoothLook() {
+        if(!smoothLook) return;
+        float currentYaw = mc.thePlayer.rotationYaw;
+        float currentPitch = mc.thePlayer.rotationPitch;
+        float targetYaw = this.targetYaw;
+        float targetPitch = this.targetPitch;
+        float speed = this.targetSpeed;
+        // 计算差值
+        float diffYaw = wrapAngleTo180_float(targetYaw - currentYaw);
+        float diffPitch = targetPitch - currentPitch;
+
+        // 限制每 tick 的旋转速度
+        diffYaw = clamp(diffYaw, -speed, speed);
+        diffPitch = clamp(diffPitch, -speed, speed);
+
+        // 更新角度
+        mc.thePlayer.rotationYaw = currentYaw + diffYaw;
+        mc.thePlayer.rotationPitch = currentPitch + diffPitch;
+        if(mc.thePlayer.rotationYaw ==targetYaw && mc.thePlayer.rotationPitch ==targetPitch) {
+            smoothLook = false;
+            mc.thePlayer.addChatMessage(new ChatComponentText("§a[FullMod] 已到达指定角度！"));
+        }
+    }
+    public float clamp(float val, float min, float max) {
+        return Math.max(min, Math.min(max, val));
+    }
+    public float wrapAngleTo180_float(float angle) {
+        angle %= 360.0F;
+        if (angle >= 180.0F) angle -= 360.0F;
+        if (angle < -180.0F) angle += 360.0F;
+        return angle;
+    }
+    public void smoothLook(float targetYaw, float targetPitch, float speed) {
+        this.targetYaw = targetYaw;
+        this.targetPitch = targetPitch;
+        this.targetSpeed = speed;
+        this.smoothLook = true;
+        mc.thePlayer.addChatMessage(new ChatComponentText("§e[FullMod] 面向：" + targetYaw+","+targetPitch));
+    }
 }
