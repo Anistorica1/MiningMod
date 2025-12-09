@@ -31,8 +31,11 @@ public class FullTestMod {
     private BlockPos[] poses = new BlockPos[100];
     private BlockPos targetPos = null;
     private boolean autoWalk = false;
-    private float targetYaw = 0;
-    private float targetPitch = 0;
+    private float startYaw, startPitch;
+    private float targetYaw, targetPitch;
+    private int smoothTicks = 0;
+    private int maxSmoothTicks = 0;
+    private boolean isSmoothLooking = false;
     private float targetSpeed = 0;
     private boolean smoothLook = false;
     public static FullTestMod instance;
@@ -49,13 +52,12 @@ public class FullTestMod {
     public FullTestMod() {
         instance = this;
     }
-
     @SubscribeEvent
     public void onClientTick(TickEvent.ClientTickEvent event) {
-        handleAutoWalk();
         handleAutoStep();
         handleSmoothLook();
         handlePathWalk();
+        handleSmoothLook2();
         if (mc.thePlayer == null || mc.theWorld == null) return;
 
         // 检测 O 键是否从未按下 -> 按下一瞬间
@@ -82,6 +84,7 @@ public class FullTestMod {
 //        BlockPos pos = mc.objectMouseOver.getBlockPos();
 
     }
+
 
     private void faceBlock(BlockPos pos) {
         double dx = pos.getX() + 0.5 - mc.thePlayer.posX;
@@ -126,38 +129,6 @@ public class FullTestMod {
     private boolean isBedrock(BlockPos pos) {
         Block block = mc.theWorld.getBlockState(pos).getBlock();
         return block == Blocks.bedrock;
-    }
-    private void handleAutoWalk() {
-        if (!autoWalk || targetPos == null) return;
-
-        double px = mc.thePlayer.posX;
-        double pz = mc.thePlayer.posZ;
-
-        double tx = targetPos.getX() + 0.5;
-        double tz = targetPos.getZ() + 0.5;
-
-        double dx = tx - px;
-        double dz = tz - pz;
-
-        double distance = Math.sqrt(dx * dx + dz * dz);
-
-        // 1. 到达目的地
-        if (distance < 0.5) {
-            autoWalk = false;
-            release(mc.gameSettings.keyBindForward);
-            mc.thePlayer.addChatMessage(new ChatComponentText("§a[FullMod] 已到达目的地！"));
-            return;
-        }
-
-        // 2. 计算 yaw
-        float yaw = (float)(Math.toDegrees(Math.atan2(dz, dx)) - 90F);
-
-        // 3. 设置玩家朝向
-        mc.thePlayer.rotationYaw = yaw;
-        mc.thePlayer.prevRotationYaw = yaw;
-
-        // 4. 按住前进
-        press(mc.gameSettings.keyBindForward);
     }
     public void walkTo(BlockPos pos) {
         this.targetPos = pos;
@@ -205,15 +176,21 @@ public class FullTestMod {
         if (angle < -180.0F) angle += 360.0F;
         return angle;
     }
-    public void smoothLook(float targetYaw, float targetPitch, float speed) {
-        this.targetYaw = targetYaw;
-        this.targetPitch = targetPitch;
-        this.targetSpeed = speed;
-        this.smoothLook = true;
-        mc.thePlayer.addChatMessage(new ChatComponentText("§e[FullMod] 面向：" + targetYaw+","+targetPitch));
+    public void smoothLook(float yaw, float pitch, float durationSeconds) {
+        this.startYaw = mc.thePlayer.rotationYaw;
+        this.startPitch = mc.thePlayer.rotationPitch;
+
+        this.targetYaw = yaw;
+        this.targetPitch = pitch;
+
+        this.maxSmoothTicks = (int)(durationSeconds * 20); // 秒 → tick
+        this.smoothTicks = 0;
+
+        this.isSmoothLooking = true;
     }
+
     private void handleAutoStep() {
-        if (!autoWalk) return;
+        if (!pathWalking) return;
 
         // 当前朝向
         double yawRad = Math.toRadians(mc.thePlayer.rotationYaw);
@@ -261,6 +238,7 @@ public class FullTestMod {
         this.pathWalking = true;
         mc.thePlayer.addChatMessage(new ChatComponentText("§a[FullMod] 开始路径寻路！"));
     }
+
     public void stopPathWalk() {
         this.pathWalking = false;
         resetKeys();
@@ -269,12 +247,22 @@ public class FullTestMod {
     private void handlePathWalk() {
         if (!pathWalking || path == null) return;
 
+
+
         if (currentNodeIndex >= path.size()) {
             stopPathWalk();
             return;
         }
-
         PathNode node = path.get(currentNodeIndex);
+        BlockPos nextPos = new BlockPos(node.x, node.y, node.z);
+
+        if (isCliffAt(nextPos.down())) {
+            resetKeys();
+            mc.thePlayer.addChatMessage(new ChatComponentText("§c前方有坑，尝试绕开"));
+            // TODO: 绕路逻辑或者停止
+            stopPathWalk();
+            return;
+        }
 
         double px = mc.thePlayer.posX;
         double pz = mc.thePlayer.posZ;
@@ -314,4 +302,36 @@ public class FullTestMod {
         float[] rotation = getRotationFromBlockPos(target);
         smoothLook(rotation[0], rotation[1], speed);
     }
+    private float easeInOut(float t) {
+        return (float)(t * t * (3 - 2 * t));
+    }
+    private void handleSmoothLook2(){
+        if (this.isSmoothLooking) {
+            if (smoothTicks >= maxSmoothTicks) {
+                mc.thePlayer.rotationYaw = targetYaw;
+                mc.thePlayer.rotationPitch = targetPitch;
+                this.isSmoothLooking = false;
+            } else {
+                float t = (float)smoothTicks / maxSmoothTicks; // 0~1
+                float k = easeInOut(t); // 使用缓动
+
+                float newYaw = startYaw + (targetYaw - startYaw) * k;
+                float newPitch = startPitch + (targetPitch - startPitch) * k;
+
+                mc.thePlayer.rotationYaw = newYaw;
+                mc.thePlayer.prevRotationYaw = newYaw;
+
+                mc.thePlayer.rotationPitch = newPitch;
+                mc.thePlayer.prevRotationPitch = newPitch;
+
+                smoothTicks++;
+            }
+        }
+    }
+    private boolean isCliffAt(BlockPos pos) {
+        // 检查 pos 下两格是否都是空气
+        return mc.theWorld.isAirBlock(pos) && mc.theWorld.isAirBlock(pos.down());
+    }
+
+
 }

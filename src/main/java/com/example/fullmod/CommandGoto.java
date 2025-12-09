@@ -21,8 +21,8 @@ public class CommandGoto extends CommandBase {
         if(args.length == 1 && args[0].equalsIgnoreCase("stop")) {
             FullTestMod.instance.stopPathWalk();
         }
-        if (args.length != 3) {
-            sender.addChatMessage(new ChatComponentText("§c用法: /goto <x> <y> <z>"));
+        if (args.length != 3 && !args[0].equalsIgnoreCase("stop") ){
+            sender.addChatMessage(new ChatComponentText("§c用法: /goto <x> <y> <z> or /goto stop"));
             return;
         }
 

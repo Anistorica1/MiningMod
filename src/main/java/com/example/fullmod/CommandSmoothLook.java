@@ -15,22 +15,22 @@ public class CommandSmoothLook extends CommandBase {
 
     @Override
     public String getCommandUsage(ICommandSender sender) {
-        return "/smoothlook <yaw> <pitch> <speed>";
+        return "/smoothlook <yaw> <pitch> <time>";
     }
 
     @Override
     public void processCommand(ICommandSender sender, String[] args) {
         if (args.length != 3) {
-            sender.addChatMessage(new ChatComponentText("§c用法: /smoothlook <yaw> <pitch> <speed>"));
+            sender.addChatMessage(new ChatComponentText("§c用法: /smoothlook <yaw> <pitch> <time>"));
             return;
         }
 
         try {
-            float x = Float.parseFloat(args[0]);
-            float y = Float.parseFloat(args[1]);
-            float z = Float.parseFloat(args[2]);
+            float yaw = Float.parseFloat(args[0]);
+            float pitch = Float.parseFloat(args[1]);
+            float time = Float.parseFloat(args[2]);
 
-            FullTestMod.instance.smoothLook(x,y,z);
+            FullTestMod.instance.smoothLook(yaw,pitch,time);
         } catch (Exception e) {
             sender.addChatMessage(new ChatComponentText("§c坐标必须是整数"));
         }
