@@ -21,7 +21,7 @@ import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.world.World;
 import java.util.Collections;
 
-@Mod(modid = "farmingmod_v1", name = "Move Mod", version = "1.0")
+@Mod(modid = "miningmod_v1.2", name = "Move Mod", version = "1.2")
 public class FullTestMod {
 
     private final Minecraft mc = Minecraft.getMinecraft();
@@ -80,7 +80,7 @@ public class FullTestMod {
         if (mc.thePlayer == null || mc.theWorld == null) return;
 
         // 检测 O 键是否从未按下 -> 按下一瞬间
-        boolean currentRKey = Keyboard.isKeyDown(Keyboard.KEY_LBRACKET);
+        boolean currentRKey = Keyboard.isKeyDown(Keyboard.KEY_RBRACKET);
         if (currentRKey && !lastRKeyState) {
             running = !running;
             resetKeys();
