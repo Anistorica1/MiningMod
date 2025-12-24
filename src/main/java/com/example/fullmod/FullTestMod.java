@@ -64,6 +64,7 @@ public class FullTestMod {
         ClientCommandHandler.instance.registerCommand(new CommandSmoothLook());
         ClientCommandHandler.instance.registerCommand(new CommandLookBlock());
         ClientCommandHandler.instance.registerCommand(new CommandTunnel());
+        ClientCommandHandler.instance.registerCommand(new CommandMining());
     }
     public FullTestMod() {
         instance = this;
@@ -81,7 +82,6 @@ public class FullTestMod {
         // 检测 O 键是否从未按下 -> 按下一瞬间
         boolean currentRKey = Keyboard.isKeyDown(Keyboard.KEY_LBRACKET);
         if (currentRKey && !lastRKeyState) {
-            startMining();
             running = !running;
             resetKeys();
             tickCounter = 0;
@@ -464,12 +464,16 @@ public class FullTestMod {
             }
         });
     }
-    public void startMining() {
-        targets = scanTargetBlocks(Blocks.iron_block);
+    public void startMining(Block targetBlock) {
+        targets = scanTargetBlocks(targetBlock);
         sortByDistance(targets);
 
-        currentIndex = 0;
+        currentIndex = -1;   // 配合“最近方块逻辑”
+        lastMined = null;
         isMining = !targets.isEmpty();
+    }
+    public void stopMining() {
+        isMining = false;
     }
     public void handleMining(){
         if (!isMining || targets.isEmpty()) {
