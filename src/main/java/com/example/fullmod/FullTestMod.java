@@ -50,6 +50,7 @@ public class FullTestMod {
     private boolean tunnelFirst2 = true;
     private boolean tunnelFirst3 = true;
     private boolean miningFirst = true;
+    private BlockPos lastMined = null; // 上一个挖掉的方块
     private int tunnelPhase = 0;
     BlockPos posTunnel = null;
     private List<BlockPos> targets = new ArrayList<BlockPos>();
@@ -102,7 +103,6 @@ public class FullTestMod {
 //        BlockPos pos = mc.objectMouseOver.getBlockPos();
 
     }
-
 
     private void faceBlock(BlockPos pos) {
         double dx = pos.getX() + 0.5 - mc.thePlayer.posX;
@@ -471,30 +471,68 @@ public class FullTestMod {
         currentIndex = 0;
         isMining = !targets.isEmpty();
     }
-    public void handleMining(){if (!isMining || currentIndex >= targets.size()) {
-        release(mc.gameSettings.keyBindAttack);
-        isMining = false;
-        return;
-    }
+    public void handleMining(){
+        if (!isMining || targets.isEmpty()) {
+            release(mc.gameSettings.keyBindAttack);
+            isMining = false;
+            return;
+        }
+
+        // 如果 currentIndex 超出范围 或者 null，重新选择离上一个方块最近的
+        if (currentIndex >= targets.size() || currentIndex < 0) {
+            currentIndex = getClosestIndexToLast(lastMined, targets);
+            if (currentIndex < 0) {
+                // 没有可挖的方块
+                release(mc.gameSettings.keyBindAttack);
+                isMining = false;
+                return;
+            }
+        }
 
         BlockPos pos = targets.get(currentIndex);
         Block block = mc.theWorld.getBlockState(pos).getBlock();
 
         // 如果已经挖掉了
         if (block == Blocks.air) {
-            currentIndex++;
+            lastMined = pos;
+            targets.remove(currentIndex);
+            currentIndex = -1;// 下次重新选择最近的
             release(mc.gameSettings.keyBindAttack);
             miningFirst = true;
             return;
         }
 
         // 对准当前方块
-        if(miningFirst) {
-            smoothLookToBlockPos(pos, 0.5f);
-            miningFirst = false;
-        }// 你已有的平滑函数
+        if(miningFirst){
+        smoothLookToBlockPos(pos,0.5f);
+        miningFirst = false;
+        } // 你已有的平滑函数
 
         // 按住左键
-        press(mc.gameSettings.keyBindAttack);}
+        press(mc.gameSettings.keyBindAttack);
+    }
+    private int getClosestIndexToLast(BlockPos last, List<BlockPos> list) {
+        if (list.isEmpty()) return -1;
+        if (last == null) return 0; // 如果还没挖过，选择第一个
+
+        int closestIndex = -1;
+        double minDist = Double.MAX_VALUE;
+
+        for (int i = 0; i < list.size(); i++) {
+            BlockPos pos = list.get(i);
+            double dx = pos.getX() - last.getX();
+            double dy = pos.getY() - last.getY();
+            double dz = pos.getZ() - last.getZ();
+            double dist = dx*dx + dy*dy + dz*dz;
+
+            if (dist < minDist) {
+                minDist = dist;
+                closestIndex = i;
+            }
+        }
+
+        return closestIndex;
+    }
+
 
 }
