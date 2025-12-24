@@ -42,12 +42,19 @@ public class FullTestMod {
     private List<PathNode> path = null;
     private int currentNodeIndex = 0;
     private boolean pathWalking = false;
+    private boolean tunnel = false;
+    private boolean tunnelFirst = true;
+    private boolean tunnelFirst2 = true;
+    private boolean tunnelFirst3 = true;
+    private int tunnelPhase = 0;
+    BlockPos posTunnel = null;
     @Mod.EventHandler
     public void init(FMLInitializationEvent event) {
         MinecraftForge.EVENT_BUS.register(this);
         ClientCommandHandler.instance.registerCommand(new CommandGoto());
         ClientCommandHandler.instance.registerCommand(new CommandSmoothLook());
         ClientCommandHandler.instance.registerCommand(new CommandLookBlock());
+        ClientCommandHandler.instance.registerCommand(new CommandTunnel());
     }
     public FullTestMod() {
         instance = this;
@@ -58,6 +65,7 @@ public class FullTestMod {
         handleSmoothLook();
         handlePathWalk();
         handleSmoothLook2();
+        handleTunnel();
         if (mc.thePlayer == null || mc.theWorld == null) return;
 
         // 检测 O 键是否从未按下 -> 按下一瞬间
@@ -188,7 +196,6 @@ public class FullTestMod {
 
         this.isSmoothLooking = true;
     }
-
     private void handleAutoStep() {
         if (!pathWalking) return;
 
@@ -332,6 +339,76 @@ public class FullTestMod {
         // 检查 pos 下两格是否都是空气
         return mc.theWorld.isAirBlock(pos) && mc.theWorld.isAirBlock(pos.down());
     }
+    public void handleTunnel(){
+        if(!tunnel)return;
+        if(tunnelFirst){posTunnel = mc.objectMouseOver.getBlockPos();
+        tunnelFirst = false;}
+        switch(tunnelPhase){
+            case 0:
+                if(tunnelFirst2) {
+                    press(mc.gameSettings.keyBindForward);
+                    smoothLookToBlockPos(posTunnel, 0.5F);
+                    tunnelFirst2 = false;
+                }
+                press(mc.gameSettings.keyBindAttack);
+                if (!hasBlock(posTunnel)) {
+                    release(mc.gameSettings.keyBindAttack);
+                    posTunnel = posTunnel.down();
+                    tunnelPhase++;
+                    tunnelFirst3 = true;
+                    release(mc.gameSettings.keyBindForward);
+                }
+                break;
+            case 1:
+                if(tunnelFirst3) {
+                    press(mc.gameSettings.keyBindForward);
+                    smoothLookToBlockPos(posTunnel, 0.5F);
+                    tunnelFirst3 = false;
+                }
+                press(mc.gameSettings.keyBindAttack);
+                if (!hasBlock(posTunnel)) {
+                    release(mc.gameSettings.keyBindAttack);
+                    posTunnel = getForwardPos(posTunnel).up();
+                    tunnelPhase = 0;
+                    tunnelFirst2 = true;
+                    release(mc.gameSettings.keyBindForward);
+                }
+                break;
+            }
 
+    }
+    public void tunnelEnable(){
+        tunnel = true;
+        tunnelFirst = true;
+        mc.thePlayer.addChatMessage(new ChatComponentText(
+                "Enable Tunnel"
+        ));
+    }
+    public void tunnelDisable(){
+        tunnel = false;
+        resetKeys();
+        mc.thePlayer.addChatMessage(new ChatComponentText(
+                "Disable Tunnel"
+        ));
+    }
+    private BlockPos getForwardPos(BlockPos base) {
+        float yaw = mc.thePlayer.rotationYaw;
+        int dx = 0;
+        int dz = 0;
+
+        yaw = (yaw % 360 + 360) % 360; // 归一化到 0~360
+
+        if (yaw >= 315 || yaw < 45) {          // +Z
+            dz = 1;
+        } else if (yaw < 135) {                // -X
+            dx = -1;
+        } else if (yaw < 225) {                // -Z
+            dz = -1;
+        } else {                               // +X
+            dx = 1;
+        }
+
+        return base.add(dx, 0, dz);
+    }
 
 }
