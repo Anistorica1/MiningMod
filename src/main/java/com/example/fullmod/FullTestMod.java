@@ -14,9 +14,12 @@ import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
 import net.minecraftforge.common.MinecraftForge;
 import org.lwjgl.input.Keyboard;
-
+import java.util.Comparator;
 import java.util.ArrayList;
 import java.util.List;
+import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.world.World;
+import java.util.Collections;
 
 @Mod(modid = "farmingmod_v1", name = "Move Mod", version = "1.0")
 public class FullTestMod {
@@ -46,8 +49,13 @@ public class FullTestMod {
     private boolean tunnelFirst = true;
     private boolean tunnelFirst2 = true;
     private boolean tunnelFirst3 = true;
+    private boolean miningFirst = true;
     private int tunnelPhase = 0;
     BlockPos posTunnel = null;
+    private List<BlockPos> targets = new ArrayList<BlockPos>();
+    private int currentIndex = 0;
+    private boolean isMining = false;
+
     @Mod.EventHandler
     public void init(FMLInitializationEvent event) {
         MinecraftForge.EVENT_BUS.register(this);
@@ -66,11 +74,13 @@ public class FullTestMod {
         handlePathWalk();
         handleSmoothLook2();
         handleTunnel();
+        handleMining();
         if (mc.thePlayer == null || mc.theWorld == null) return;
 
         // 检测 O 键是否从未按下 -> 按下一瞬间
         boolean currentRKey = Keyboard.isKeyDown(Keyboard.KEY_LBRACKET);
         if (currentRKey && !lastRKeyState) {
+            startMining();
             running = !running;
             resetKeys();
             tickCounter = 0;
@@ -410,5 +420,81 @@ public class FullTestMod {
 
         return base.add(dx, 0, dz);
     }
+    public List<BlockPos> scanTargetBlocks(Block targetBlock) {
+        List<BlockPos> result = new ArrayList<BlockPos>();
+
+        EntityPlayer player = mc.thePlayer;
+        World world = mc.theWorld;
+
+        BlockPos playerPos = new BlockPos(player.posX, player.posY, player.posZ);
+        int range = 4;
+
+        for (int x = -range; x <= range; x++) {
+            for (int y = -range; y <= range; y++) {
+                for (int z = -range; z <= range; z++) {
+
+                    BlockPos pos = playerPos.add(x, y, z);
+                    Block block = world.getBlockState(pos).getBlock();
+
+                    if (block == targetBlock) {
+                        double dist = player.getDistance(
+                                pos.getX() + 0.5,
+                                pos.getY() + 0.5,
+                                pos.getZ() + 0.5
+                        );
+
+                        if (dist <= 4.5) {
+                            result.add(pos);
+                        }
+                    }
+                }
+            }
+        }
+        return result;
+    }
+    public void sortByDistance(List<BlockPos> list) {
+        final EntityPlayer player = mc.thePlayer;
+
+        Collections.sort(list, new Comparator<BlockPos>() {
+            @Override
+            public int compare(BlockPos o1, BlockPos o2) {
+                double d1 = player.getDistance(o1.getX() + 0.5, o1.getY() + 0.5, o1.getZ() + 0.5);
+                double d2 = player.getDistance(o2.getX() + 0.5, o2.getY() + 0.5, o2.getZ() + 0.5);
+                return Double.compare(d1, d2);
+            }
+        });
+    }
+    public void startMining() {
+        targets = scanTargetBlocks(Blocks.iron_block);
+        sortByDistance(targets);
+
+        currentIndex = 0;
+        isMining = !targets.isEmpty();
+    }
+    public void handleMining(){if (!isMining || currentIndex >= targets.size()) {
+        release(mc.gameSettings.keyBindAttack);
+        isMining = false;
+        return;
+    }
+
+        BlockPos pos = targets.get(currentIndex);
+        Block block = mc.theWorld.getBlockState(pos).getBlock();
+
+        // 如果已经挖掉了
+        if (block == Blocks.air) {
+            currentIndex++;
+            release(mc.gameSettings.keyBindAttack);
+            miningFirst = true;
+            return;
+        }
+
+        // 对准当前方块
+        if(miningFirst) {
+            smoothLookToBlockPos(pos, 0.5f);
+            miningFirst = false;
+        }// 你已有的平滑函数
+
+        // 按住左键
+        press(mc.gameSettings.keyBindAttack);}
 
 }
