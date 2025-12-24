@@ -91,6 +91,7 @@ public class FullTestMod {
                     "§e[FullMod] 自动动作已 " + (running ? "§a开启" : "§c关闭")
             ));
         }
+
         lastRKeyState = currentRKey;
 
         if (!running) return;
@@ -477,7 +478,6 @@ public class FullTestMod {
     }
     public void handleMining(){
         if (!isMining || targets.isEmpty()) {
-            release(mc.gameSettings.keyBindAttack);
             isMining = false;
             return;
         }
