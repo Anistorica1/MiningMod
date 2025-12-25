@@ -1,5 +1,7 @@
 package com.example.fullmod;
 
+import net.minecraft.util.MovingObjectPosition;
+import net.minecraft.util.Vec3;
 import net.minecraftforge.client.ClientCommandHandler;
 import net.minecraft.block.Block;
 import net.minecraft.init.Blocks;
@@ -14,12 +16,11 @@ import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
 import net.minecraftforge.common.MinecraftForge;
 import org.lwjgl.input.Keyboard;
-import java.util.Comparator;
-import java.util.ArrayList;
-import java.util.List;
+
+import java.util.*;
+
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.world.World;
-import java.util.Collections;
 
 @Mod(modid = "miningmod_v1.2", name = "Move Mod", version = "1.2")
 public class FullTestMod {
@@ -56,7 +57,9 @@ public class FullTestMod {
     private List<BlockPos> targets = new ArrayList<BlockPos>();
     private int currentIndex = 0;
     private boolean isMining = false;
-
+    private final Map<BlockPos, Long> skipUntil = new HashMap<BlockPos, Long>();
+    private static final long BEDROCK_COOLDOWN = 800;
+    private int tickCounterMining = 0;
     @Mod.EventHandler
     public void init(FMLInitializationEvent event) {
         MinecraftForge.EVENT_BUS.register(this);
@@ -421,7 +424,7 @@ public class FullTestMod {
 
         return base.add(dx, 0, dz);
     }
-    public List<BlockPos> scanTargetBlocks(Block targetBlock) {
+    public List<BlockPos> scanTargetBlocks(List<Block> targetBlock) {
         List<BlockPos> result = new ArrayList<BlockPos>();
 
         EntityPlayer player = mc.thePlayer;
@@ -436,18 +439,20 @@ public class FullTestMod {
 
                     BlockPos pos = playerPos.add(x, y, z);
                     Block block = world.getBlockState(pos).getBlock();
+                    for (Block block2 : targetBlock) {
+                        if (block == block2) {
+                            double dist = player.getDistance(
+                                    pos.getX() + 0.5,
+                                    pos.getY() + 0.5,
+                                    pos.getZ() + 0.5
+                            );
 
-                    if (block == targetBlock) {
-                        double dist = player.getDistance(
-                                pos.getX() + 0.5,
-                                pos.getY() + 0.5,
-                                pos.getZ() + 0.5
-                        );
-
-                        if (dist <= 4.5) {
-                            result.add(pos);
+                            if (dist <= 4.5) {
+                                result.add(pos);
+                            }
                         }
                     }
+
                 }
             }
         }
@@ -465,12 +470,15 @@ public class FullTestMod {
             }
         });
     }
-    public void startMining(Block targetBlock) {
+    public void startMining(List<Block> targetBlock) {
         targets = scanTargetBlocks(targetBlock);
         sortByDistance(targets);
 
-        currentIndex = -1;   // 配合“最近方块逻辑”
+        currentIndex = -1;
         lastMined = null;
+        miningFirst = true;
+        skipUntil.clear();
+        tickCounterMining = 0;
         isMining = !targets.isEmpty();
     }
     public void stopMining() {
@@ -494,13 +502,38 @@ public class FullTestMod {
         }
 
         BlockPos pos = targets.get(currentIndex);
-        Block block = mc.theWorld.getBlockState(pos).getBlock();
+        // 如果当前目标被挡住，跳过
+        if (!canReach(pos)) {
 
-        // 如果已经挖掉了
-        if (block == Blocks.air) {
+            // 给它一个短冷却（比如 300ms）
+            skipUntil.put(
+                    pos,
+                    System.currentTimeMillis() + 300
+            );
+
             lastMined = pos;
-            targets.remove(currentIndex);
-            currentIndex = -1;// 下次重新选择最近的
+
+            currentIndex = -1;
+            release(mc.gameSettings.keyBindAttack);
+            miningFirst = true;
+            return;
+        }
+
+        Block block = mc.theWorld.getBlockState(pos).getBlock();
+        // 如果已经挖掉了
+        if (block == Blocks.bedrock) {
+
+            // 设置冷却时间
+            skipUntil.put(
+                    pos,
+                    System.currentTimeMillis() + BEDROCK_COOLDOWN
+            );
+
+            lastMined = pos;
+
+            // 关键：不 remove，只是放弃当前索引
+            currentIndex = -1;
+
             release(mc.gameSettings.keyBindAttack);
             miningFirst = true;
             return;
@@ -511,23 +544,57 @@ public class FullTestMod {
         smoothLookToBlockPos(pos,0.5f);
         miningFirst = false;
         } // 你已有的平滑函数
-
-        // 按住左键
-        press(mc.gameSettings.keyBindAttack);
+        if (tickCounterMining == 0){
+            release(mc.gameSettings.keyBindAttack);
+            press(mc.gameSettings.keyBindUseItem);
+            tickCounterMining++;
+        }
+        else if (tickCounterMining >0 && tickCounterMining <3){
+            tickCounterMining++;
+        }
+        else if (tickCounterMining == 3){
+            release(mc.gameSettings.keyBindUseItem);
+            tickCounterMining ++;
+        }
+        else if (tickCounterMining == 1200){
+            tickCounterMining = 0;
+        }
+        else {
+            // 按住左键
+            press(mc.gameSettings.keyBindAttack);
+            tickCounterMining++;
+        }
     }
     private int getClosestIndexToLast(BlockPos last, List<BlockPos> list) {
         if (list.isEmpty()) return -1;
-        if (last == null) return 0; // 如果还没挖过，选择第一个
+
+        long now = System.currentTimeMillis();
 
         int closestIndex = -1;
         double minDist = Double.MAX_VALUE;
 
         for (int i = 0; i < list.size(); i++) {
             BlockPos pos = list.get(i);
-            double dx = pos.getX() - last.getX();
-            double dy = pos.getY() - last.getY();
-            double dz = pos.getZ() - last.getZ();
-            double dist = dx*dx + dy*dy + dz*dz;
+
+            // ⛔ 冷却中，跳过
+            if (skipUntil.containsKey(pos)) {
+                if (skipUntil.get(pos) > now) {
+                    continue;
+                } else {
+                    // 冷却过期，移除记录
+                    skipUntil.remove(pos);
+                }
+            }
+
+            double dist;
+            if (last == null) {
+                dist = 0;
+            } else {
+                double dx = pos.getX() - last.getX();
+                double dy = pos.getY() - last.getY();
+                double dz = pos.getZ() - last.getZ();
+                dist = dx * dx + dy * dy + dz * dz;
+            }
 
             if (dist < minDist) {
                 minDist = dist;
@@ -536,6 +603,23 @@ public class FullTestMod {
         }
 
         return closestIndex;
+    }
+    private boolean canReach(BlockPos pos) {
+        Vec3 eyePos = mc.thePlayer.getPositionEyes(1.0F);
+
+        Vec3 target = new Vec3(
+                pos.getX() + 0.5,
+                pos.getY() + 0.5,
+                pos.getZ() + 0.5
+        );
+
+        MovingObjectPosition mop =
+                mc.theWorld.rayTraceBlocks(eyePos, target, false, true, false);
+
+        if (mop == null) return true;
+
+        return mop.typeOfHit == MovingObjectPosition.MovingObjectType.BLOCK
+                && mop.getBlockPos().equals(pos);
     }
 
 

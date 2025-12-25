@@ -6,8 +6,26 @@ import net.minecraft.init.Blocks;
 import net.minecraft.util.BlockPos;
 import net.minecraft.util.ChatComponentText;
 
+import java.util.ArrayList;
+import java.util.List;
+
 
 public class CommandMining extends CommandBase {
+
+    @Override
+    public List<String> addTabCompletionOptions(
+            ICommandSender sender,
+            String[] args,
+            BlockPos pos
+    ) {
+        if (args.length == 1 || args.length == 2) {
+            return getListOfStringsMatchingLastWord(
+                    args,
+                    "wool", "prismarine","stop"
+            );
+        }
+        return null;
+    }
     @Override
     public String getCommandName() {
         return "mining";
@@ -15,15 +33,15 @@ public class CommandMining extends CommandBase {
 
     @Override
     public String getCommandUsage(ICommandSender sender) {
-        return "/mining <block_name>";
+        return "/mining <block_name1> <block_name2> <block_name3>";
     }
 
     @Override
     public void processCommand(ICommandSender sender, String[] args) {
 
-        if (args.length != 1) {
+        if (args.length != 1 && args.length != 2 && args.length != 3) {
             sender.addChatMessage(
-                    new ChatComponentText("§c用法: /mining <block_name> or /minging stop")
+                    new ChatComponentText("§c用法: /mining <block_name1> <block_name2> <block_name3> or /minging stop")
             );
             return;
         }
@@ -34,22 +52,27 @@ public class CommandMining extends CommandBase {
             FullTestMod.instance.stopMining();
             return;
         }
-        String blockName = args[0];
+        List<Block> blocks = new ArrayList<Block>();
 
-        Block block = Block.getBlockFromName(blockName);
+        for (String name : args) {
+            Block block = Block.getBlockFromName(name);
 
-        if (block == null || block == Blocks.air) {
+            if (block == null || block == Blocks.air) {
+                sender.addChatMessage(
+                        new ChatComponentText("§c未知方块: " + name)
+                );
+                return;
+            }
+
+            blocks.add(block);
+        }
+        FullTestMod.instance.startMining(blocks);
+        for (Block block : blocks) {
             sender.addChatMessage(
-                    new ChatComponentText("§c未知方块: " + blockName)
+                    new ChatComponentText("§a开始挖掘: " + block.getLocalizedName())
             );
-            return;
         }
 
-        FullTestMod.instance.startMining(block);
-
-        sender.addChatMessage(
-                new ChatComponentText("§a开始挖掘: " + block.getLocalizedName())
-        );
     }
     @Override
     public int getRequiredPermissionLevel() {
