@@ -51,6 +51,7 @@ public class FullTestMod {
     private boolean tunnelFirst2 = true;
     private boolean tunnelFirst3 = true;
     private boolean tunnelFirst4 = true;
+    private boolean tunnelFirst6 = true;
     private int tempPhase = 0;
     private int direction = 0;
     private double tunnelTemp = 0;
@@ -97,6 +98,14 @@ public class FullTestMod {
             tickCounter = 0;
             phase = 0;
             markFirst = true;
+            if(tunnelFirst6){
+                tunnelEnable();
+                tunnelFirst6 = false;
+            }
+            else{
+                tunnelDisable();
+                tunnelFirst6 = true;
+            }
             mc.thePlayer.addChatMessage(new ChatComponentText(
                     "§e[FullMod] 自动动作已 " + (running ? "§a开启" : "§c关闭")
             ));
@@ -344,7 +353,8 @@ public class FullTestMod {
                 float t = (float)smoothTicks / maxSmoothTicks; // 0~1
                 float k = easeInOut(t); // 使用缓动
 
-                float newYaw = startYaw + (targetYaw - startYaw) * k;
+                float diffYaw = wrapAngleTo180_float(targetYaw - startYaw);
+                float newYaw = startYaw + diffYaw * k;
                 float newPitch = startPitch + (targetPitch - startPitch) * k;
 
                 mc.thePlayer.rotationYaw = newYaw;
@@ -365,20 +375,25 @@ public class FullTestMod {
         if(!tunnel)return;
         if(tunnelFirst){posTunnel = mc.objectMouseOver.getBlockPos();
         tunnelFirst = false;}
+        if (mc.objectMouseOver == null) return;
+        if (mc.objectMouseOver.getBlockPos() == null) return;
         switch(direction){
             case 0: break;
-            case 1: if (tunnelTemp == mc.thePlayer.posX  && tunnelTickCounter % 200 == 0 && tunnelTickCounter > 200 && tunnelFirst4)
+            case 1: if (Math.abs(tunnelTemp - mc.thePlayer.posX) <= 0.1  && tunnelTickCounter % 230 == 0 && tunnelTickCounter > 200 && tunnelFirst4)
             {
                 smoothLookToBlockPos(getForwardBlock(),0.5f);
                 tunnelFirst4 = false;
                 tempPhase = tunnelPhase;
                 tunnelPhase = 2;
                 resetKeys();
+                mc.thePlayer.addChatMessage(new ChatComponentText(
+                        "mark"
+                ));
             }
-                tunnelTemp = mc.thePlayer.posX;
+                if(tunnelTickCounter % 100 ==0){tunnelTemp = mc.thePlayer.posX;}
                 tunnelTickCounter++;
                 break;
-            case 2: if (tunnelTemp == mc.thePlayer.posZ  && tunnelTickCounter % 200 == 0 && tunnelTickCounter > 200 && tunnelFirst4)
+            case 2: if (Math.abs(tunnelTemp - mc.thePlayer.posZ) <= 0.1  && tunnelTickCounter % 230 == 0 && tunnelTickCounter > 200 && tunnelFirst4)
             {
                 smoothLookToBlockPos(getForwardBlock(),0.5f);
                 tunnelFirst4 = false;
@@ -386,7 +401,7 @@ public class FullTestMod {
                 tunnelPhase = 2;
                 resetKeys();
             }
-                tunnelTemp = mc.thePlayer.posZ;
+                if(tunnelTickCounter % 100 ==0){tunnelTemp = mc.thePlayer.posZ;}
                 tunnelTickCounter++;
                 break;
         }
@@ -430,8 +445,9 @@ public class FullTestMod {
                 }
                 break;
             case 2:
-                resetKeys();
                 press(mc.gameSettings.keyBindUseItem);
+                tunnelFirst4 = true;
+                press(mc.gameSettings.keyBindAttack);
                 if(!hasBlock(getForwardBlock())){
                     tunnelPhase = tempPhase;
                     tempPhase = 0;
@@ -439,7 +455,9 @@ public class FullTestMod {
                     tunnelFirst4 = true;
                     press(mc.gameSettings.keyBindForward);
                 }
+                break;
         }
+
 
     }
     public void tunnelEnable(){
@@ -449,6 +467,7 @@ public class FullTestMod {
         tunnelTickCounter = 0;
         tunnel = true;
         tunnelFirst = true;
+        tunnelFirst4 = true;
         tunnelPhase = 0;
         mc.thePlayer.addChatMessage(new ChatComponentText(
                 "Enable Tunnel"
@@ -696,6 +715,8 @@ public class FullTestMod {
                 && mop.getBlockPos().equals(pos);
     }
     private boolean isChest(BlockPos pos){
+        if (pos == null) return false;
+        if (mc.theWorld == null) return false;
         Block block = mc.theWorld.getBlockState(pos).getBlock();
         return block == Blocks.chest;
     }
