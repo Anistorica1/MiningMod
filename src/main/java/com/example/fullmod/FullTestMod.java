@@ -53,6 +53,7 @@ public class FullTestMod {
     private boolean miningFirst = true;
     private BlockPos lastMined = null; // 上一个挖掉的方块
     private int tunnelPhase = 0;
+    private int tempPhase = 0;
     BlockPos posTunnel = null;
     private List<BlockPos> targets = new ArrayList<BlockPos>();
     private int currentIndex = 0;
@@ -61,6 +62,7 @@ public class FullTestMod {
     private static final long BEDROCK_COOLDOWN = 800;
     private int tickCounterMining = 0;
     private int currentTickCounter = 0;
+    private int chestTickCounter = 0;
     @Mod.EventHandler
     public void init(FMLInitializationEvent event) {
         MinecraftForge.EVENT_BUS.register(this);
@@ -359,43 +361,52 @@ public class FullTestMod {
         if(!tunnel)return;
         if(tunnelFirst){posTunnel = mc.objectMouseOver.getBlockPos();
         tunnelFirst = false;}
-        switch(tunnelPhase){
+        switch(tunnelPhase) {
             case 0:
-                if(tunnelFirst2) {
+                if (tunnelFirst2) {
                     press(mc.gameSettings.keyBindForward);
                     smoothLookToBlockPos(posTunnel, 0.5F);
                     tunnelFirst2 = false;
                 }
                 press(mc.gameSettings.keyBindAttack);
                 if (!hasBlock(posTunnel)) {
-                    release(mc.gameSettings.keyBindAttack);
+                    resetKeys();
                     posTunnel = posTunnel.down();
                     tunnelPhase++;
                     tunnelFirst3 = true;
                     release(mc.gameSettings.keyBindForward);
                 }
+                else if(isChest(posTunnel)) {
+                    release(mc.gameSettings.keyBindAttack);
+                    press(mc.gameSettings.keyBindUseItem);
+                }
                 break;
             case 1:
-                if(tunnelFirst3) {
+                if (tunnelFirst3) {
                     press(mc.gameSettings.keyBindForward);
                     smoothLookToBlockPos(posTunnel, 0.5F);
                     tunnelFirst3 = false;
                 }
                 press(mc.gameSettings.keyBindAttack);
                 if (!hasBlock(posTunnel)) {
-                    release(mc.gameSettings.keyBindAttack);
+                    resetKeys();
                     posTunnel = getForwardPos(posTunnel).up();
                     tunnelPhase = 0;
                     tunnelFirst2 = true;
                     release(mc.gameSettings.keyBindForward);
                 }
+                else if(isChest(posTunnel)) {
+                    release(mc.gameSettings.keyBindAttack);
+                    press(mc.gameSettings.keyBindUseItem);
+                }
                 break;
-            }
+        }
 
     }
     public void tunnelEnable(){
         tunnel = true;
         tunnelFirst = true;
+        tunnelPhase = 0;
         mc.thePlayer.addChatMessage(new ChatComponentText(
                 "Enable Tunnel"
         ));
@@ -640,6 +651,9 @@ public class FullTestMod {
         return mop.typeOfHit == MovingObjectPosition.MovingObjectType.BLOCK
                 && mop.getBlockPos().equals(pos);
     }
-
+    private boolean isChest(BlockPos pos){
+        Block block = mc.theWorld.getBlockState(pos).getBlock();
+        return block == Blocks.chest;
+    }
 
 }
