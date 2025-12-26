@@ -60,6 +60,7 @@ public class FullTestMod {
     private final Map<BlockPos, Long> skipUntil = new HashMap<BlockPos, Long>();
     private static final long BEDROCK_COOLDOWN = 800;
     private int tickCounterMining = 0;
+    private int currentTickCounter = 0;
     @Mod.EventHandler
     public void init(FMLInitializationEvent event) {
         MinecraftForge.EVENT_BUS.register(this);
@@ -322,6 +323,7 @@ public class FullTestMod {
     public void smoothLookToBlockPos(BlockPos target, float speed) {
         float[] rotation = getRotationFromBlockPos(target);
         smoothLook(rotation[0], rotation[1], speed);
+        currentTickCounter = tickCounterMining;
     }
     private float easeInOut(float t) {
         return (float)(t * t * (3 - 2 * t));
@@ -518,7 +520,23 @@ public class FullTestMod {
             miningFirst = true;
             return;
         }
+        if(tickCounterMining - currentTickCounter >= 100) {
 
+            // 给它一个短冷却（比如 300ms）
+            skipUntil.put(
+                    pos,
+                    System.currentTimeMillis() + 300
+            );
+
+
+            lastMined = pos;
+
+            currentIndex = -1;
+            release(mc.gameSettings.keyBindAttack);
+            miningFirst = true;
+            currentTickCounter = tickCounterMining;
+            return;
+        }
         Block block = mc.theWorld.getBlockState(pos).getBlock();
         // 如果已经挖掉了
         if (block == Blocks.bedrock) {
@@ -558,6 +576,7 @@ public class FullTestMod {
         }
         else if (tickCounterMining == 1200){
             tickCounterMining = 0;
+            currentTickCounter = tickCounterMining;
         }
         else {
             // 按住左键
