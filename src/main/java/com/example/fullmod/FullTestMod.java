@@ -50,10 +50,14 @@ public class FullTestMod {
     private boolean tunnelFirst = true;
     private boolean tunnelFirst2 = true;
     private boolean tunnelFirst3 = true;
+    private boolean tunnelFirst4 = true;
+    private int tempPhase = 0;
+    private int direction = 0;
+    private double tunnelTemp = 0;
+    private int tunnelTickCounter = 0;
     private boolean miningFirst = true;
     private BlockPos lastMined = null; // 上一个挖掉的方块
     private int tunnelPhase = 0;
-    private int tempPhase = 0;
     BlockPos posTunnel = null;
     private List<BlockPos> targets = new ArrayList<BlockPos>();
     private int currentIndex = 0;
@@ -361,6 +365,31 @@ public class FullTestMod {
         if(!tunnel)return;
         if(tunnelFirst){posTunnel = mc.objectMouseOver.getBlockPos();
         tunnelFirst = false;}
+        switch(direction){
+            case 0: break;
+            case 1: if (tunnelTemp == mc.thePlayer.posX  && tunnelTickCounter % 200 == 0 && tunnelTickCounter > 200 && tunnelFirst4)
+            {
+                smoothLookToBlockPos(getForwardBlock(),0.5f);
+                tunnelFirst4 = false;
+                tempPhase = tunnelPhase;
+                tunnelPhase = 2;
+                resetKeys();
+            }
+                tunnelTemp = mc.thePlayer.posX;
+                tunnelTickCounter++;
+                break;
+            case 2: if (tunnelTemp == mc.thePlayer.posZ  && tunnelTickCounter % 200 == 0 && tunnelTickCounter > 200 && tunnelFirst4)
+            {
+                smoothLookToBlockPos(getForwardBlock(),0.5f);
+                tunnelFirst4 = false;
+                tempPhase = tunnelPhase;
+                tunnelPhase = 2;
+                resetKeys();
+            }
+                tunnelTemp = mc.thePlayer.posZ;
+                tunnelTickCounter++;
+                break;
+        }
         switch(tunnelPhase) {
             case 0:
                 if (tunnelFirst2) {
@@ -376,7 +405,7 @@ public class FullTestMod {
                     tunnelFirst3 = true;
                     release(mc.gameSettings.keyBindForward);
                 }
-                else if(isChest(posTunnel)) {
+                else if(isChest(mc.objectMouseOver.getBlockPos())) {
                     release(mc.gameSettings.keyBindAttack);
                     press(mc.gameSettings.keyBindUseItem);
                 }
@@ -395,15 +424,29 @@ public class FullTestMod {
                     tunnelFirst2 = true;
                     release(mc.gameSettings.keyBindForward);
                 }
-                else if(isChest(posTunnel)) {
+                else if(isChest(mc.objectMouseOver.getBlockPos())) {
                     release(mc.gameSettings.keyBindAttack);
                     press(mc.gameSettings.keyBindUseItem);
                 }
                 break;
+            case 2:
+                resetKeys();
+                press(mc.gameSettings.keyBindUseItem);
+                if(!hasBlock(getForwardBlock())){
+                    tunnelPhase = tempPhase;
+                    tempPhase = 0;
+                    tunnelTickCounter = 0;
+                    tunnelFirst4 = true;
+                    press(mc.gameSettings.keyBindForward);
+                }
         }
 
     }
     public void tunnelEnable(){
+        MoveDir dir = getForwardMoveDir();
+        if(dir.isX())direction = 1;
+        else if(dir.isZ())direction = 2;
+        tunnelTickCounter = 0;
         tunnel = true;
         tunnelFirst = true;
         tunnelPhase = 0;
@@ -412,6 +455,7 @@ public class FullTestMod {
         ));
     }
     public void tunnelDisable(){
+        direction = 0;
         tunnel = false;
         resetKeys();
         mc.thePlayer.addChatMessage(new ChatComponentText(
@@ -654,6 +698,65 @@ public class FullTestMod {
     private boolean isChest(BlockPos pos){
         Block block = mc.theWorld.getBlockState(pos).getBlock();
         return block == Blocks.chest;
+    }
+    private BlockPos getForwardBlock() {
+        float yaw = mc.thePlayer.rotationYaw;
+        int dx = 0;
+        int dz = 0;
+
+        // 归一化到 0 ~ 360
+        yaw = (yaw % 360 + 360) % 360;
+
+        if (yaw >= 315 || yaw < 45) {
+            // +Z
+            dz = 1;
+        } else if (yaw < 135) {
+            // -X
+            dx = -1;
+        } else if (yaw < 225) {
+            // -Z
+            dz = -1;
+        } else {
+            // +X
+            dx = 1;
+        }
+
+        return new BlockPos(
+                mc.thePlayer.posX + dx,
+                mc.thePlayer.posY,
+                mc.thePlayer.posZ + dz
+        );
+    }
+
+
+    private FacingAxis getPlayerFacingAxis() {
+        float yaw = mc.thePlayer.rotationYaw;
+
+        yaw = (yaw % 360 + 360) % 360; // 归一化到 0~360
+
+        if (yaw >= 315 || yaw < 45) {          // +Z
+            return FacingAxis.POS_Z;
+        } else if (yaw < 135) {                // -X
+            return FacingAxis.NEG_X;
+        } else if (yaw < 225) {                // -Z
+            return FacingAxis.NEG_Z;
+        } else {                               // +X
+            return FacingAxis.POS_X;
+        }
+    }
+    private MoveDir getForwardMoveDir() {
+        float yaw = mc.thePlayer.rotationYaw;
+        yaw = (yaw % 360 + 360) % 360; // 0~360
+
+        if (yaw >= 315 || yaw < 45) {          // +Z
+            return MoveDir.POS_Z;
+        } else if (yaw < 135) {                // -X
+            return MoveDir.NEG_X;
+        } else if (yaw < 225) {                // -Z
+            return MoveDir.NEG_Z;
+        } else {                               // +X
+            return MoveDir.POS_X;
+        }
     }
 
 }
