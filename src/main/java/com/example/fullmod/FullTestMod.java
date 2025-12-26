@@ -381,7 +381,17 @@ public class FullTestMod {
             case 0: break;
             case 1: if (Math.abs(tunnelTemp - mc.thePlayer.posX) <= 0.1  && tunnelTickCounter % 230 == 0 && tunnelTickCounter > 200 && tunnelFirst4)
             {
-                smoothLookToBlockPos(getForwardBlock(),0.5f);
+                if(isGlassPane(new BlockPos(
+                        mc.thePlayer.posX,
+                        mc.thePlayer.posY,
+                        mc.thePlayer.posZ
+                ))){smoothLookToBlockPos(new BlockPos(
+                        mc.thePlayer.posX,
+                        mc.thePlayer.posY,
+                        mc.thePlayer.posZ
+                ),0.5f);
+                }
+                else smoothLookToBlockPos(getForwardBlock(),0.5f);
                 tunnelFirst4 = false;
                 tempPhase = tunnelPhase;
                 tunnelPhase = 2;
@@ -395,7 +405,17 @@ public class FullTestMod {
                 break;
             case 2: if (Math.abs(tunnelTemp - mc.thePlayer.posZ) <= 0.1  && tunnelTickCounter % 230 == 0 && tunnelTickCounter > 200 && tunnelFirst4)
             {
-                smoothLookToBlockPos(getForwardBlock(),0.5f);
+                if(isGlassPane(new BlockPos(
+                        mc.thePlayer.posX,
+                        mc.thePlayer.posY,
+                        mc.thePlayer.posZ
+                ))){smoothLookToBlockPos(new BlockPos(
+                        mc.thePlayer.posX,
+                        mc.thePlayer.posY,
+                        mc.thePlayer.posZ
+                ),0.5f);
+                }
+                else smoothLookToBlockPos(getForwardBlock(),0.5f);
                 tunnelFirst4 = false;
                 tempPhase = tunnelPhase;
                 tunnelPhase = 2;
@@ -423,6 +443,7 @@ public class FullTestMod {
                 else if(isChest(mc.objectMouseOver.getBlockPos())) {
                     release(mc.gameSettings.keyBindAttack);
                     press(mc.gameSettings.keyBindUseItem);
+                    resetKeys();
                 }
                 break;
             case 1:
@@ -442,6 +463,7 @@ public class FullTestMod {
                 else if(isChest(mc.objectMouseOver.getBlockPos())) {
                     release(mc.gameSettings.keyBindAttack);
                     press(mc.gameSettings.keyBindUseItem);
+                    resetKeys();
                 }
                 break;
             case 2:
@@ -454,6 +476,11 @@ public class FullTestMod {
                     tunnelTickCounter = 0;
                     tunnelFirst4 = true;
                     press(mc.gameSettings.keyBindForward);
+                }
+                if(isChest(mc.objectMouseOver.getBlockPos())) {
+                    release(mc.gameSettings.keyBindAttack);
+                    press(mc.gameSettings.keyBindUseItem);
+                    resetKeys();
                 }
                 break;
         }
@@ -779,5 +806,10 @@ public class FullTestMod {
             return MoveDir.POS_X;
         }
     }
-
+    private boolean isGlassPane(BlockPos pos){
+        if (pos == null) return false;
+        if (mc.theWorld == null) return false;
+        Block block = mc.theWorld.getBlockState(pos).getBlock();
+        return block == Blocks.glass_pane || block == Blocks.stained_glass_pane;
+    }
 }
