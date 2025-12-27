@@ -439,14 +439,18 @@ public class FullTestMod {
                 }
                 press(mc.gameSettings.keyBindForward);
                 press(mc.gameSettings.keyBindAttack);
-                if(hasBlock(new BlockPos(
+                if((hasBlock(new BlockPos(
                         mc.thePlayer.posX,
                         mc.thePlayer.posY,
                         mc.thePlayer.posZ
-                )) || hasBlock(getForwardBlock())){
+                )) || hasBlock(getForwardBlock())) && !(isLava(new BlockPos(
+                        mc.thePlayer.posX,
+                        mc.thePlayer.posY,
+                        mc.thePlayer.posZ
+                )) || isLava(getForwardBlock()))){
                     release(mc.gameSettings.keyBindForward);
                 }
-                if (!hasBlock(posTunnel)) {
+                if (!hasBlock(posTunnel) || isLava(posTunnel)) {
                     resetKeys();
                     posTunnel = posTunnel.down();
                     tunnelPhase++;
@@ -467,14 +471,18 @@ public class FullTestMod {
                 }
                 press(mc.gameSettings.keyBindForward);
                 press(mc.gameSettings.keyBindAttack);
-                if(hasBlock(new BlockPos(
+                if((hasBlock(new BlockPos(
                         mc.thePlayer.posX,
                         mc.thePlayer.posY,
                         mc.thePlayer.posZ
-                )) || hasBlock(getForwardBlock())){
+                )) || hasBlock(getForwardBlock())) && !(isLava(new BlockPos(
+                        mc.thePlayer.posX,
+                        mc.thePlayer.posY,
+                        mc.thePlayer.posZ
+                )) || isLava(getForwardBlock()))){
                     release(mc.gameSettings.keyBindForward);
                 }
-                if (!hasBlock(posTunnel)) {
+                if (!hasBlock(posTunnel) || isLava(posTunnel)) {
                     resetKeys();
                     posTunnel = getForwardPos(posTunnel).up();
                     tunnelPhase = 0;
@@ -487,7 +495,6 @@ public class FullTestMod {
                     press(mc.gameSettings.keyBindUseItem);
                     resetKeys();
                 }
-
                 break;
             case 2:
                 press(mc.gameSettings.keyBindUseItem);
@@ -835,6 +842,12 @@ public class FullTestMod {
         if (mc.theWorld == null) return false;
         Block block = mc.theWorld.getBlockState(pos).getBlock();
         return block == Blocks.glass_pane || block == Blocks.stained_glass_pane;
+    }
+    private boolean isLava(BlockPos pos){
+        if (pos == null) return false;
+        if (mc.theWorld == null) return false;
+        Block block = mc.theWorld.getBlockState(pos).getBlock();
+        return block == Blocks.lava;
     }
     private void returnCenter(){
         float yaw = mc.thePlayer.rotationYaw;
