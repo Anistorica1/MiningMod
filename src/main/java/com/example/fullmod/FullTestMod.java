@@ -47,11 +47,16 @@ public class FullTestMod {
     private int currentNodeIndex = 0;
     private boolean pathWalking = false;
     private boolean tunnel = false;
+    private boolean bedrock = false;
     private boolean tunnelFirst = true;
     private boolean tunnelFirst2 = true;
     private boolean tunnelFirst3 = true;
     private boolean tunnelFirst4 = true;
     private boolean tunnelFirst6 = true;
+    private float tunnelYaw = 0;
+    private int tunnelCounter = 0;
+    private int tunnelDirection = 0;
+    private int returnCenterPhase = 0;
     private int tempPhase = 0;
     private int direction = 0;
     private double tunnelTemp = 0;
@@ -88,6 +93,7 @@ public class FullTestMod {
         handleSmoothLook2();
         handleTunnel();
         handleMining();
+        handleBedRockPhase();
         if (mc.thePlayer == null || mc.theWorld == null) return;
 
         // 检测 O 键是否从未按下 -> 按下一瞬间
@@ -99,11 +105,11 @@ public class FullTestMod {
             phase = 0;
             markFirst = true;
             if(tunnelFirst6){
-                tunnelEnable();
+                tunnelUpgradeEnable();
                 tunnelFirst6 = false;
             }
             else{
-                tunnelDisable();
+                tunnelUpgradeDisable();
                 tunnelFirst6 = true;
             }
             mc.thePlayer.addChatMessage(new ChatComponentText(
@@ -428,11 +434,18 @@ public class FullTestMod {
         switch(tunnelPhase) {
             case 0:
                 if (tunnelFirst2) {
-                    press(mc.gameSettings.keyBindForward);
                     smoothLookToBlockPos(posTunnel, 0.5F);
                     tunnelFirst2 = false;
                 }
+                press(mc.gameSettings.keyBindForward);
                 press(mc.gameSettings.keyBindAttack);
+                if(hasBlock(new BlockPos(
+                        mc.thePlayer.posX,
+                        mc.thePlayer.posY,
+                        mc.thePlayer.posZ
+                )) || hasBlock(getForwardBlock())){
+                    release(mc.gameSettings.keyBindForward);
+                }
                 if (!hasBlock(posTunnel)) {
                     resetKeys();
                     posTunnel = posTunnel.down();
@@ -452,19 +465,29 @@ public class FullTestMod {
                     smoothLookToBlockPos(posTunnel, 0.5F);
                     tunnelFirst3 = false;
                 }
+                press(mc.gameSettings.keyBindForward);
                 press(mc.gameSettings.keyBindAttack);
+                if(hasBlock(new BlockPos(
+                        mc.thePlayer.posX,
+                        mc.thePlayer.posY,
+                        mc.thePlayer.posZ
+                )) || hasBlock(getForwardBlock())){
+                    release(mc.gameSettings.keyBindForward);
+                }
                 if (!hasBlock(posTunnel)) {
                     resetKeys();
                     posTunnel = getForwardPos(posTunnel).up();
                     tunnelPhase = 0;
                     tunnelFirst2 = true;
                     release(mc.gameSettings.keyBindForward);
+                    tunnelCounter++;
                 }
                 else if(isChest(mc.objectMouseOver.getBlockPos())) {
                     release(mc.gameSettings.keyBindAttack);
                     press(mc.gameSettings.keyBindUseItem);
                     resetKeys();
                 }
+
                 break;
             case 2:
                 press(mc.gameSettings.keyBindUseItem);
@@ -496,6 +519,7 @@ public class FullTestMod {
         tunnelFirst = true;
         tunnelFirst4 = true;
         tunnelPhase = 0;
+        tunnelCounter = 0;
         mc.thePlayer.addChatMessage(new ChatComponentText(
                 "Enable Tunnel"
         ));
@@ -811,5 +835,122 @@ public class FullTestMod {
         if (mc.theWorld == null) return false;
         Block block = mc.theWorld.getBlockState(pos).getBlock();
         return block == Blocks.glass_pane || block == Blocks.stained_glass_pane;
+    }
+    private void returnCenter(){
+        float yaw = mc.thePlayer.rotationYaw;
+        // 归一化到 0 ~ 360
+        yaw = (yaw % 360 + 360) % 360;
+
+        if (yaw >= 315 || yaw < 45) {
+            // +Z
+            smoothLook(0.0f,0.0f,0.5f);
+        } else if (yaw < 135) {
+            // -X
+            smoothLook(90.0f,0.0f,0.5f);
+        } else if (yaw < 225) {
+            // -Z
+            smoothLook(180.0f,0.0f,0.5f);
+        } else {
+            // +X
+            smoothLook(-90.0f,0.0f,0.5f);
+        }
+    }
+    private float getCenter(){
+        float yaw = mc.thePlayer.rotationYaw;
+        // 归一化到 0 ~ 360
+        yaw = (yaw % 360 + 360) % 360;
+
+        if (yaw >= 315 || yaw < 45) {
+            // +Z
+            return 0.0f;
+        } else if (yaw < 135) {
+            // -X
+            return 90.0f;
+        } else if (yaw < 225) {
+            // -Z
+            return 180.0f;
+        } else {
+            // +X
+            return -90.0f;
+        }
+    }
+    private void handleBedRockPhase(){
+        if(mc.thePlayer == null || !bedrock) return;
+        if(!isBedrock(getForwardBlock().up()) && returnCenterPhase ==0){return;}
+        switch(tunnelDirection){
+            case 0:if(returnCenterPhase == 0) {
+                tunnelDisable();
+                resetKeys();
+                returnCenter();
+                returnCenterPhase++;
+            }
+                if(Math.abs(mc.thePlayer.rotationYaw-getCenter())<= 0.01 && returnCenterPhase == 1){
+                    tunnelYaw = mc.thePlayer.rotationYaw+90.0f;
+                    smoothLook(tunnelYaw,0.0f,0.5f);
+                    returnCenterPhase++;
+                }
+                if(Math.abs(mc.thePlayer.rotationYaw-tunnelYaw)<= 0.01 && returnCenterPhase == 2){
+                    tunnelEnable();
+                    returnCenterPhase++;
+                }
+                if(returnCenterPhase == 3 && tunnelCounter == 3){
+                    tunnelDisable();
+                    returnCenter();
+                    returnCenterPhase++;
+                }
+                if(Math.abs(mc.thePlayer.rotationYaw-getCenter())<= 0.01 && returnCenterPhase == 4){
+                    tunnelYaw = mc.thePlayer.rotationYaw+90.0f;
+                    smoothLook(tunnelYaw,0.0f,0.5f);
+                    returnCenterPhase++;
+                }
+                if(Math.abs(mc.thePlayer.rotationYaw-tunnelYaw)<= 0.01 && returnCenterPhase == 5){
+                    tunnelEnable();
+                    returnCenterPhase = 0;
+                    tunnelDirection = 1;
+                }
+                break;
+
+            case 1:
+                if(returnCenterPhase == 0) {
+                tunnelDisable();
+                resetKeys();
+                returnCenter();
+                returnCenterPhase++;
+            }
+                if(Math.abs(mc.thePlayer.rotationYaw-getCenter())<= 0.01 && returnCenterPhase == 1){
+                    tunnelYaw = mc.thePlayer.rotationYaw-90.0f;
+                    smoothLook(tunnelYaw,0.0f,0.5f);
+                    returnCenterPhase++;
+                }
+                if(Math.abs(mc.thePlayer.rotationYaw-tunnelYaw)<= 0.01 && returnCenterPhase == 2){
+                    tunnelEnable();
+                    returnCenterPhase++;
+                }
+                if(returnCenterPhase == 3 && tunnelCounter == 3){
+                    tunnelDisable();
+                    returnCenter();
+                    returnCenterPhase++;
+                }
+                if(Math.abs(mc.thePlayer.rotationYaw-getCenter())<= 0.01 && returnCenterPhase == 4){
+                    tunnelYaw = mc.thePlayer.rotationYaw-90.0f;
+                    smoothLook(tunnelYaw,0.0f,0.5f);
+                    returnCenterPhase++;
+                }
+                if(Math.abs(mc.thePlayer.rotationYaw-tunnelYaw)<= 0.01 && returnCenterPhase == 5){
+                    tunnelEnable();
+                    returnCenterPhase = 0;
+                    tunnelDirection = 0;
+                }
+                break;
+
+        }
+    }
+    public void tunnelUpgradeEnable(){
+        bedrock = true;
+        tunnelEnable();
+    }
+    public void tunnelUpgradeDisable(){
+        bedrock = false;
+        tunnelDisable();
     }
 }

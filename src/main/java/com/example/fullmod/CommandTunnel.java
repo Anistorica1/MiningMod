@@ -34,10 +34,10 @@ public class CommandTunnel extends CommandBase {
     @Override
     public void processCommand(ICommandSender sender, String[] args) {
         if(args.length == 1 && args[0].equalsIgnoreCase("stop")) {
-            FullTestMod.instance.tunnelDisable();
+            FullTestMod.instance.tunnelUpgradeDisable();
         }
         if(args.length == 1 && args[0].equalsIgnoreCase("start")) {
-            FullTestMod.instance.tunnelEnable();
+            FullTestMod.instance.tunnelUpgradeEnable();
         }
         if (args.length != 1){
             sender.addChatMessage(new ChatComponentText("§c用法: /tunnel start or /tunnel stop"));
